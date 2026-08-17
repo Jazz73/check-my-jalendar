@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>check-my-jalendar · plan a meeting</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="wrap narrow">
+    <h1>🗓️ check-my-jalendar</h1>
+    <p class="sub">Make a shareable page, everyone marks when they're free, see the best time to meet.</p>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Create an event</h2>
+
+      <label>Event name</label>
+      <input id="title" type="text" placeholder="e.g. Board game night" />
+
+      <label>Your name <span class="hint">— you'll be the admin</span></label>
+      <input id="admin" type="text" placeholder="e.g. Sam" />
+
+      <label>Days to consider</label>
+      <div class="row">
+        <div style="flex:2"><input id="dayPick" type="date" /></div>
+        <div style="flex:0"><button type="button" id="addDay">Add day</button></div>
+      </div>
+      <div style="margin-top:8px">
+        <button type="button" class="ghost small" id="addWeek">+ Next 7 days</button>
+        <button type="button" class="ghost small" id="addWeekend">+ This weekend</button>
+      </div>
+      <div class="chips" id="chips"></div>
+
+      <label>Core times to show <span class="hint">— the window each day the grid covers</span></label>
+      <div class="row">
+        <div>
+          <div class="muted-title">Weekdays</div>
+          <div class="row">
+            <div><select id="wdStart"></select></div>
+            <div><select id="wdEnd"></select></div>
+          </div>
+        </div>
+        <div>
+          <div class="muted-title">Weekends</div>
+          <div class="row">
+            <div><select id="weStart"></select></div>
+            <div><select id="weEnd"></select></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px">
+        <button class="primary" id="create">Create event →</button>
+      </div>
+      <div class="error" id="err"></div>
+    </div>
+
+    <div class="panel">
+      <div class="muted-title">Have a link already?</div>
+      <div class="share" style="margin-top:8px">
+        <input id="joinLink" type="text" placeholder="Paste an event link…" />
+        <button id="go">Open</button>
+      </div>
+    </div>
+
+    <footer>Name-only, low-security — just to keep everyone honest.</footer>
+  </div>
+
+  <script type="module">
+    import { HALF_HOUR, fmtTime, fmtDayShort, api } from '/app.js';
+
+    // --- populate time selects (00:00 .. 24:00 in 30-min steps) ---
+    function fillTimes(sel, selectedMin, includeMidnightEnd) {
+      const max = includeMidnightEnd ? 1440 : 1410;
+      const min = includeMidnightEnd ? HALF_HOUR : 0;
+      for (let m = min; m <= max; m += HALF_HOUR) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m === 1440 ? '12:00 AM (midnight)' : fmtTime(m);
+        if (m === selectedMin) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+    fillTimes(wdStart, 1020, false);   // 5:00 PM
+    fillTimes(wdEnd, 1440, true);      // midnight
+    fillTimes(weStart, 660, false);    // 11:00 AM
+    fillTimes(weEnd, 1440, true);      // midnight
+
+    // --- day chips ---
+    const days = new Set();
+    function iso(d) {
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    }
+    function renderChips() {
+      chips.innerHTML = '';
+      [...days].sort().forEach((day) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<span>${fmtDayShort(day)}</span>`;
+        const x = document.createElement('button');
+        x.textContent = '×';
+        x.title = 'Remove';
+        x.onclick = () => { days.delete(day); renderChips(); };
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    }
+    addDay.onclick = () => { if (dayPick.value) { days.add(dayPick.value); renderChips(); } };
+    addWeek.onclick = () => {
+      const t = new Date(); t.setHours(0, 0, 0, 0);
+      for (let i = 0; i < 7; i++) { const d = new Date(t); d.setDate(t.getDate() + i); days.add(iso(d)); }
+      renderChips();
+    };
+    addWeekend.onclick = () => {
+      const t = new Date(); t.setHours(0, 0, 0, 0);
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(t); d.setDate(t.getDate() + i);
+        const dow = d.getDay();
+        if (dow === 6 || dow === 0) days.add(iso(d));
+        if (days.size >= 4) break;
+      }
+      renderChips();
+    };
+
+    // --- create ---
+    create.onclick = async () => {
+      err.textContent = '';
+      const payload = {
+        title: title.value,
+        adminName: admin.value,
+        days: [...days],
+        weekdayStartMin: +wdStart.value,
+        weekdayEndMin: +wdEnd.value,
+        weekendStartMin: +weStart.value,
+        weekendEndMin: +weEnd.value,
+      };
+      if (!payload.adminName.trim()) { err.textContent = 'Enter your name.'; return; }
+      if (!payload.days.length) { err.textContent = 'Add at least one day.'; return; }
+      create.disabled = true;
+      try {
+        const { id } = await api('/api/events', 'POST', payload);
+        location.href = `/e/${id}`;
+      } catch (e) {
+        err.textContent = e.message;
+        create.disabled = false;
+      }
+    };
+
+    // --- open existing link ---
+    go.onclick = () => {
+      const v = joinLink.value.trim();
+      if (!v) return;
+      const m = v.match(/\/e\/([0-9a-z]+)/i) || v.match(/[?&]id=([0-9a-z]+)/i);
+      location.href = m ? `/e/${m[1]}` : v;
+    };
+  </script>
+</body>
+</html>

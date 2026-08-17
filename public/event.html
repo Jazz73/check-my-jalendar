@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>check-my-jalendar</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <!-- header -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1 id="title">Loading…</h1>
+        <p class="sub" id="subtitle"></p>
+      </div>
+      <a href="/" class="notice">＋ New event</a>
+    </div>
+
+    <!-- name gate -->
+    <div class="panel narrow hidden" id="gate">
+      <h2 style="margin-top:0">Enter your name to join</h2>
+      <p class="notice">First time claims the name, next time picks up where you left off. Low security — just to keep honest.</p>
+      <div class="share" style="margin-top:12px">
+        <input id="nameInput" type="text" placeholder="Your name" />
+        <button class="primary" id="joinBtn">Join</button>
+      </div>
+      <div class="error" id="gateErr"></div>
+    </div>
+
+    <!-- main app (hidden until joined) -->
+    <div id="app" class="hidden">
+      <div class="panel">
+        <div class="share">
+          <span class="pill">🔗 Share this link</span>
+          <input id="shareLink" type="text" readonly />
+          <button id="copyBtn">Copy</button>
+        </div>
+      </div>
+
+      <!-- my availability -->
+      <div class="panel">
+        <h2 style="margin-top:0">Your availability
+          <span class="hint" id="whoAmI"></span>
+        </h2>
+        <p class="notice">Click or drag to mark when <strong>you</strong> can meet. Saves automatically.</p>
+        <div class="grid-scroll"><div class="grid" id="myGrid"></div></div>
+        <div class="legend"><span class="swatch" style="background:var(--accent)"></span> you're free
+          <span style="margin-left:auto" id="saveState"></span></div>
+        <div class="people" id="people"></div>
+      </div>
+
+      <!-- best times -->
+      <div class="panel">
+        <h2 style="margin-top:0">Best times to meet</h2>
+        <div class="tabs">
+          <button data-tab="heat" class="active">Heatmap</button>
+          <button data-tab="top">Top times</button>
+          <button data-tab="block">Best block</button>
+        </div>
+        <div id="tabHeat">
+          <div class="grid-scroll"><div class="grid" id="heatGrid"></div></div>
+          <div class="legend">
+            <span>fewer</span>
+            <span class="swatch" style="background:#eef2ff"></span>
+            <span class="swatch" style="background:#a9c0fb"></span>
+            <span class="swatch" style="background:#5b86f4"></span>
+            <span class="swatch" style="background:#2148c0"></span>
+            <span>everyone</span>
+          </div>
+        </div>
+        <div id="tabTop" class="hidden">
+          <ul class="best" id="topList"></ul>
+        </div>
+        <div id="tabBlock" class="hidden">
+          <div id="blockOut"></div>
+        </div>
+      </div>
+
+      <!-- admin -->
+      <div class="panel hidden" id="adminPanel">
+        <h2 style="margin-top:0">⚙️ Admin controls</h2>
+
+        <label>Event name</label>
+        <div class="share">
+          <input id="adminTitle" type="text" />
+          <button id="saveTitle">Save</button>
+        </div>
+
+        <label style="margin-top:18px">Core times to show</label>
+        <div class="row">
+          <div>
+            <div class="muted-title">Weekdays</div>
+            <div class="row">
+              <div><select id="aWdStart"></select></div>
+              <div><select id="aWdEnd"></select></div>
+            </div>
+          </div>
+          <div>
+            <div class="muted-title">Weekends</div>
+            <div class="row">
+              <div><select id="aWeStart"></select></div>
+              <div><select id="aWeEnd"></select></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px"><button class="primary" id="saveTimes">Save core times</button></div>
+
+        <label style="margin-top:22px">Days</label>
+        <div id="adminDays"></div>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:2"><input id="newDay" type="date" /></div>
+          <div style="flex:0"><button id="addDayBtn">Add day</button></div>
+        </div>
+
+        <div class="error" id="adminErr"></div>
+      </div>
+    </div>
+
+    <footer>check-my-jalendar</footer>
+  </div>
+
+  <script type="module">
+    import {
+      HALF_HOUR, api, fmtTime, fmtRange, fmtDayShort, slotsForDay, isWeekend,
+      rememberName, recallName,
+    } from '/app.js';
+
+    // ---- resolve event id from /e/<id> or ?id= ----
+    const eventId =
+      (location.pathname.match(/\/e\/([0-9a-z]+)/i) || [])[1] ||
+      new URLSearchParams(location.search).get('id');
+
+    if (!eventId) { document.body.innerHTML = '<div class="wrap"><p>Missing event id.</p></div>'; }
+
+    const $ = (id) => document.getElementById(id);
+
+    let snap = null;        // latest server snapshot
+    let myName = recallName(eventId);
+    let isAdmin = false;
+    let mine = new Set();   // "day|min" I selected
+    let gridSig = '';       // signature of days+windows, to know when to rebuild grids
+    let saveTimer = null, pollTimer = null;
+
+    // ---------- boot ----------
+    (async function boot() {
+      try {
+        snap = await api(`/api/events/${eventId}`);
+      } catch (e) {
+        document.body.innerHTML = `<div class="wrap"><h1>Event not found</h1><p class="sub">${e.message}</p><p><a href="/">Make a new one →</a></p></div>`;
+        return;
+      }
+      $('title').textContent = snap.event.title;
+      $('subtitle').textContent = `${snap.days.length} day${snap.days.length === 1 ? '' : 's'} · 30-minute slots`;
+
+      if (myName) {
+        await doJoin(myName, /*silent*/ true);
+      } else {
+        showGate();
+      }
+    })();
+
+    function showGate() {
+      $('gate').classList.remove('hidden');
+      $('app').classList.add('hidden');
+      $('nameInput').value = myName || '';
+      $('nameInput').focus();
+    }
+
+    $('joinBtn').onclick = () => doJoin($('nameInput').value);
+    $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin($('nameInput').value); });
+
+    async function doJoin(name, silent) {
+      const n = (name || '').trim();
+      if (!n) { $('gateErr').textContent = 'Enter a name.'; return; }
+      try {
+        const { participant, isAdmin: admin } = await api(`/api/events/${eventId}/join`, 'POST', { name: n });
+        myName = participant.name;
+        isAdmin = admin;
+        rememberName(eventId, myName);
+        $('gate').classList.add('hidden');
+        $('app').classList.remove('hidden');
+        await refresh(/*rebuild*/ true);
+        startPolling();
+      } catch (e) {
+        if (silent) { showGate(); $('gateErr').textContent = e.message; }
+        else $('gateErr').textContent = e.message;
+      }
+    }
+
+    // ---------- data refresh ----------
+    async function refresh(forceRebuild) {
+      snap = await api(`/api/events/${eventId}`);
+      $('title').textContent = snap.event.title;
+      $('subtitle').textContent = `${snap.days.length} day${snap.days.length === 1 ? '' : 's'} · 30-minute slots`;
+      $('shareLink').value = location.origin + '/e/' + eventId;
+      $('whoAmI').textContent = `— signed in as ${myName}${isAdmin ? ' (admin)' : ''}`;
+
+      // my participant id + load mine from server only on (re)build/first load
+      const me = snap.participants.find((p) => p.name.toLowerCase() === myName.toLowerCase());
+      const sig = JSON.stringify([snap.days, snap.event.weekdayStartMin, snap.event.weekdayEndMin, snap.event.weekendStartMin, snap.event.weekendEndMin]);
+      const rebuild = forceRebuild || sig !== gridSig;
+      gridSig = sig;
+
+      if (rebuild && me) {
+        mine = new Set(
+          snap.availability.filter((a) => a.participant_id === me.id).map((a) => `${a.day}|${a.start_min}`)
+        );
+      }
+
+      renderPeople(me);
+      if (rebuild) buildMyGrid();
+      else paintMyGrid();
+      renderResults(me);
+      if (isAdmin) buildAdmin();
+      $('adminPanel').classList.toggle('hidden', !isAdmin);
+    }
+
+    function startPolling() {
+      clearInterval(pollTimer);
+      pollTimer = setInterval(() => refresh(false).catch(() => {}), 5000);
+    }
+
+    // ---------- grid geometry ----------
+    function allSlots() {
+      const s = new Set();
+      for (const day of snap.days) for (const m of slotsForDay(snap.event, day)) s.add(m);
+      return [...s].sort((a, b) => a - b);
+    }
+    function daySlotSet(day) { return new Set(slotsForDay(snap.event, day)); }
+
+    function layoutGrid(el) {
+      el.style.gridTemplateColumns = `auto repeat(${snap.days.length}, 74px)`;
+    }
+
+    // ---------- my editable grid ----------
+    let painting = false, paintTo = false;
+
+    function buildMyGrid() {
+      const el = $('myGrid');
+      el.innerHTML = '';
+      if (!snap.days.length) { el.innerHTML = '<p class="notice">No days yet — the admin can add some.</p>'; return; }
+      layoutGrid(el);
+      const slots = allSlots();
+      const daySets = snap.days.map(daySlotSet);
+
+      el.appendChild(cell('gcell ghead', ''));               // corner
+      snap.days.forEach((d) => el.appendChild(cell('gcell ghead', fmtDayShort(d))));
+
+      for (const m of slots) {
+        el.appendChild(cell('gcell gtime', fmtTime(m)));
+        snap.days.forEach((day, i) => {
+          if (!daySets[i].has(m)) { el.appendChild(cell('slot off', '')); return; }
+          const key = `${day}|${m}`;
+          const c = document.createElement('div');
+          c.className = 'slot' + (mine.has(key) ? ' mine' : '');
+          c.dataset.key = key;
+          c.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            painting = true; paintTo = !mine.has(key);
+            applyPaint(key, c);
+          });
+          c.addEventListener('pointerenter', () => { if (painting) applyPaint(key, c); });
+          el.appendChild(c);
+        });
+      }
+    }
+
+    function applyPaint(key, c) {
+      if (paintTo) { mine.add(key); c.classList.add('mine'); }
+      else { mine.delete(key); c.classList.remove('mine'); }
+      scheduleSave();
+    }
+
+    // re-color my grid without rebuilding (after poll)
+    function paintMyGrid() {
+      $('myGrid').querySelectorAll('.slot[data-key]').forEach((c) => {
+        c.classList.toggle('mine', mine.has(c.dataset.key));
+      });
+    }
+
+    window.addEventListener('pointerup', () => { painting = false; });
+
+    function cell(cls, text) {
+      const d = document.createElement('div');
+      d.className = cls; d.textContent = text; return d;
+    }
+
+    // ---------- save (debounced) ----------
+    function scheduleSave() {
+      $('saveState').textContent = 'saving…';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveMine, 450);
+    }
+    async function saveMine() {
+      const slots = [...mine].map((k) => { const [day, m] = k.split('|'); return { day, startMin: +m }; });
+      try {
+        await api(`/api/events/${eventId}/availability`, 'PUT', { name: myName, slots });
+        $('saveState').textContent = 'saved ✓';
+      } catch (e) {
+        $('saveState').textContent = 'save failed: ' + e.message;
+      }
+    }
+
+    // ---------- counts across everyone ----------
+    function computeCounts() {
+      // key -> { count, names[] }
+      const byId = new Map(snap.participants.map((p) => [p.id, p.name]));
+      const map = new Map();
+      for (const a of snap.availability) {
+        const key = `${a.day}|${a.start_min}`;
+        let rec = map.get(key);
+        if (!rec) { rec = { count: 0, names: [] }; map.set(key, rec); }
+        rec.count++; rec.names.push(byId.get(a.participant_id) || '?');
+      }
+      // fold in my *unsaved* edits so the views feel live
+      const meName = myName;
+      for (const key of map.keys()) {
+        const rec = map.get(key);
+        const hadMe = rec.names.some((n) => n.toLowerCase() === meName.toLowerCase());
+        const wantMe = mine.has(key);
+        if (hadMe && !wantMe) { rec.count--; rec.names = rec.names.filter((n) => n.toLowerCase() !== meName.toLowerCase()); }
+      }
+      for (const key of mine) {
+        let rec = map.get(key);
+        if (!rec) { rec = { count: 0, names: [] }; map.set(key, rec); }
+        if (!rec.names.some((n) => n.toLowerCase() === meName.toLowerCase())) { rec.count++; rec.names.push(meName); }
+      }
+      return map;
+    }
+
+    // ---------- results (3 views) ----------
+    function renderPeople(me) {
+      const el = $('people'); el.innerHTML = '';
+      snap.participants.forEach((p) => {
+        const s = document.createElement('span');
+        s.className = 'person' + (me && p.id === me.id ? ' me' : '');
+        s.textContent = p.name;
+        el.appendChild(s);
+      });
+    }
+
+    function renderResults() {
+      const counts = computeCounts();
+      const total = snap.participants.length;
+      renderHeat(counts, total);
+      renderTop(counts, total);
+      renderBlock(counts, total);
+    }
+
+    function heatColor(count, total) {
+      if (!count) return '#ffffff';
+      const t = total ? count / total : 0;
+      if (t <= 0.001) return '#ffffff';
+      if (t < 0.34) return '#dbe4fd';
+      if (t < 0.67) return '#a9c0fb';
+      if (t < 1) return '#5b86f4';
+      return '#2148c0';
+    }
+
+    function renderHeat(counts, total) {
+      const el = $('heatGrid'); el.innerHTML = '';
+      if (!snap.days.length) { el.innerHTML = '<p class="notice">No days yet.</p>'; return; }
+      layoutGrid(el);
+      const slots = allSlots();
+      const daySets = snap.days.map(daySlotSet);
+      el.appendChild(cell('gcell ghead', ''));
+      snap.days.forEach((d) => el.appendChild(cell('gcell ghead', fmtDayShort(d))));
+      for (const m of slots) {
+        el.appendChild(cell('gcell gtime', fmtTime(m)));
+        snap.days.forEach((day, i) => {
+          if (!daySets[i].has(m)) { el.appendChild(cell('slot off', '')); return; }
+          const rec = counts.get(`${day}|${m}`);
+          const n = rec ? rec.count : 0;
+          const c = document.createElement('div');
+          c.className = 'slot heat';
+          c.style.background = heatColor(n, total);
+          c.style.color = n / (total || 1) >= 0.67 ? '#fff' : '#334';
+          c.style.display = 'flex'; c.style.alignItems = 'center'; c.style.justifyContent = 'center';
+          c.style.fontSize = '0.72rem';
+          c.textContent = n || '';
+          if (rec) c.title = `${fmtDayShort(day)} ${fmtRange(m, m + HALF_HOUR)}\n${rec.names.join(', ')}`;
+          el.appendChild(c);
+        });
+      }
+    }
+
+    // merge consecutive equal-count slots (same day) into ranges
+    function mergedRuns(counts) {
+      const runs = [];
+      for (const day of snap.days) {
+        const slots = slotsForDay(snap.event, day);
+        let cur = null;
+        for (const m of slots) {
+          const rec = counts.get(`${day}|${m}`);
+          const n = rec ? rec.count : 0;
+          const names = rec ? rec.names : [];
+          if (cur && cur.count === n && cur.end === m) {
+            cur.end = m + HALF_HOUR;
+          } else {
+            if (cur) runs.push(cur);
+            cur = { day, start: m, end: m + HALF_HOUR, count: n, names };
+          }
+        }
+        if (cur) runs.push(cur);
+      }
+      return runs;
+    }
+
+    function renderTop(counts, total) {
+      const el = $('topList'); el.innerHTML = '';
+      const runs = mergedRuns(counts).filter((r) => r.count > 0);
+      runs.sort((a, b) => b.count - a.count || (b.end - b.start) - (a.end - a.start));
+      if (!runs.length) { el.innerHTML = '<p class="notice">No availability marked yet.</p>'; return; }
+      runs.slice(0, 10).forEach((r) => {
+        const li = document.createElement('li');
+        if (total && r.count === total) li.className = 'full';
+        li.innerHTML = `
+          <span><span class="count">${r.count} of ${total}</span> can make
+            <strong>${fmtDayShort(r.day)}</strong> ${fmtRange(r.start, r.end)}
+            <div class="who">${r.names.join(', ')}</div>
+          </span>
+          ${total && r.count === total ? '<span class="badge">everyone ✓</span>' : ''}`;
+        el.appendChild(li);
+      });
+    }
+
+    function renderBlock(counts, total) {
+      const el = $('blockOut'); el.innerHTML = '';
+      const runs = mergedRuns(counts);
+      const maxCount = runs.reduce((mx, r) => Math.max(mx, r.count), 0);
+      if (!maxCount) { el.innerHTML = '<p class="notice">No availability marked yet.</p>'; return; }
+
+      // peak windows: contiguous runs at the maximum attendance
+      const peaks = runs.filter((r) => r.count === maxCount).sort((a, b) => (b.end - b.start) - (a.end - a.start));
+
+      if (total && maxCount === total) {
+        el.innerHTML += `<div class="callout">🎉 Everyone (${total}) can make it during the times below.</div>`;
+      } else {
+        el.innerHTML += `<p class="notice">Peak attendance is <strong>${maxCount} of ${total}</strong>. Longest windows at that level:</p>`;
+      }
+      const ul = document.createElement('ul'); ul.className = 'best';
+      peaks.slice(0, 6).forEach((r) => {
+        const li = document.createElement('li');
+        if (total && r.count === total) li.className = 'full';
+        const mins = r.end - r.start;
+        li.innerHTML = `
+          <span><strong>${fmtDayShort(r.day)}</strong> ${fmtRange(r.start, r.end)}
+            <div class="who">${mins >= 60 ? Math.floor(mins / 60) + 'h' : ''}${mins % 60 ? (mins % 60) + 'm' : (mins >= 60 ? '' : '')} · ${r.names.join(', ')}</div>
+          </span>
+          <span class="count">${r.count}/${total}</span>`;
+        ul.appendChild(li);
+      });
+      el.appendChild(ul);
+    }
+
+    // ---------- tabs ----------
+    document.querySelectorAll('.tabs button').forEach((b) => {
+      b.onclick = () => {
+        document.querySelectorAll('.tabs button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        $('tabHeat').classList.toggle('hidden', b.dataset.tab !== 'heat');
+        $('tabTop').classList.toggle('hidden', b.dataset.tab !== 'top');
+        $('tabBlock').classList.toggle('hidden', b.dataset.tab !== 'block');
+      };
+    });
+
+    // ---------- share ----------
+    $('copyBtn').onclick = async () => {
+      try { await navigator.clipboard.writeText($('shareLink').value); $('copyBtn').textContent = 'Copied ✓'; setTimeout(() => ($('copyBtn').textContent = 'Copy'), 1500); }
+      catch { $('shareLink').select(); }
+    };
+
+    // ---------- admin ----------
+    function fillTimes(sel, selectedMin, includeMidnightEnd) {
+      sel.innerHTML = '';
+      const max = includeMidnightEnd ? 1440 : 1410;
+      const min = includeMidnightEnd ? HALF_HOUR : 0;
+      for (let m = min; m <= max; m += HALF_HOUR) {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m === 1440 ? '12:00 AM (midnight)' : fmtTime(m);
+        if (m === selectedMin) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+
+    let adminBuilt = false;
+    function buildAdmin() {
+      const e = snap.event;
+      if (!adminBuilt) {
+        fillTimes($('aWdStart'), e.weekdayStartMin, false);
+        fillTimes($('aWdEnd'), e.weekdayEndMin, true);
+        fillTimes($('aWeStart'), e.weekendStartMin, false);
+        fillTimes($('aWeEnd'), e.weekendEndMin, true);
+        $('adminTitle').value = e.title;
+        adminBuilt = true;
+      }
+      // days list
+      const dl = $('adminDays'); dl.innerHTML = '';
+      snap.days.forEach((day) => {
+        const row = document.createElement('div'); row.className = 'admin-day';
+        row.innerHTML = `<span>${fmtDayShort(day)}</span>`;
+        const rm = document.createElement('button'); rm.className = 'small ghost'; rm.textContent = 'Remove';
+        rm.onclick = () => adminAction(() => api(`/api/events/${eventId}/days`, 'DELETE', { name: myName, day }));
+        row.appendChild(rm); dl.appendChild(row);
+      });
+    }
+
+    async function adminAction(fn) {
+      $('adminErr').textContent = '';
+      try { await fn(); await refresh(true); }
+      catch (e) { $('adminErr').textContent = e.message; }
+    }
+
+    $('saveTitle').onclick = () => adminAction(() =>
+      api(`/api/events/${eventId}`, 'PUT', { name: myName, title: $('adminTitle').value }));
+
+    $('saveTimes').onclick = () => adminAction(() =>
+      api(`/api/events/${eventId}`, 'PUT', {
+        name: myName,
+        weekdayStartMin: +$('aWdStart').value, weekdayEndMin: +$('aWdEnd').value,
+        weekendStartMin: +$('aWeStart').value, weekendEndMin: +$('aWeEnd').value,
+      }));
+
+    $('addDayBtn').onclick = () => {
+      if (!$('newDay').value) return;
+      adminAction(() => api(`/api/events/${eventId}/days`, 'POST', { name: myName, day: $('newDay').value }));
+    };
+  </script>
+</body>
+</html>
