@@ -105,7 +105,11 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 .gcell { font-size: 0.75rem; text-align: center; min-width: 0; touch-action: pan-y; }
 .ghead {
   display: flex; flex-direction: column; align-items: center; line-height: 1.1;
-  padding: 4px 2px 6px; color: var(--ink);
+  padding: 6px 2px; color: var(--ink);
+  /* freeze this group's day/date row while scrolling its times; the next
+     group's header takes over when that group scrolls up */
+  position: sticky; top: 0; z-index: 2;
+  background: var(--panel); box-shadow: 0 1px 0 var(--line);
 }
 .ghead .dow { font-weight: 700; font-size: 0.72rem; }
 .ghead .dom { font-weight: 800; font-size: 0.95rem; }
