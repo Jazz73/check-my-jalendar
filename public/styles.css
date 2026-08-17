@@ -112,7 +112,7 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
   text-align: right; white-space: nowrap; align-self: center;
 }
 .slot {
-  width: 100%; min-width: 0; height: 28px; border-radius: 5px;
+  width: 100%; min-width: 0; height: 22px; border-radius: 5px;
   border: 1px solid var(--line); background: #fff; cursor: pointer;
   transition: background 0.05s;
 }
@@ -128,7 +128,7 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 
 @media (max-width: 520px) {
   :root { --timecol: 44px; }
-  .slot { height: 30px; }        /* a touch taller for easier tapping */
+  .slot { height: 25px; }        /* a touch taller for easier tapping */
   .gtime { font-size: 0.62rem; }
 }
 

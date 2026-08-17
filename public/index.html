@@ -9,7 +9,6 @@
 <body>
   <div class="wrap narrow">
     <h1>Check My Jalendar</h1>
-    <p class="sub">Make a shareable page, everyone marks when they're free, see the best time to meet.</p>
 
     <div class="panel">
       <h2 style="margin-top:0">Create an event</h2>
@@ -117,20 +116,28 @@
         chips.appendChild(chip);
       });
     }
-    addDay.onclick = () => { if (dayPick.value) { days.add(dayPick.value); renderChips(); } };
-    addRange.onclick = () => {
+    // Fold any pending single-day / range inputs into the set. Returns true if
+    // anything was added. Called both by the buttons and automatically on create.
+    function commitPendingDays() {
+      let added = false;
+      if (dayPick.value) { days.add(dayPick.value); added = true; }
       let a = rangeStart.value, b = rangeEnd.value;
-      if (!a && !b) return;
-      if (!a) a = b;           // one end filled -> single day
-      if (!b) b = a;
-      if (a > b) [a, b] = [b, a];
-      const start = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
-      let guard = 0;
-      for (let d = new Date(start); d <= end && guard < 366; d.setDate(d.getDate() + 1), guard++) {
-        days.add(iso(d));
+      if (a || b) {
+        if (!a) a = b;           // one end filled -> single day
+        if (!b) b = a;
+        if (a > b) [a, b] = [b, a];
+        const start = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
+        let guard = 0;
+        for (let d = new Date(start); d <= end && guard < 366; d.setDate(d.getDate() + 1), guard++) {
+          days.add(iso(d));
+        }
+        added = true;
       }
-      renderChips();
-    };
+      if (added) renderChips();
+      return added;
+    }
+    addDay.onclick = () => { if (dayPick.value) { days.add(dayPick.value); renderChips(); } };
+    addRange.onclick = commitPendingDays;
     addWeek.onclick = () => {
       const t = new Date(); t.setHours(0, 0, 0, 0);
       for (let i = 0; i < 7; i++) { const d = new Date(t); d.setDate(t.getDate() + i); days.add(iso(d)); }
@@ -150,6 +157,7 @@
     // --- create ---
     create.onclick = async () => {
       err.textContent = '';
+      commitPendingDays();   // auto-add any range/day the user typed but didn't click "Add"
       const payload = {
         title: title.value,
         adminName: admin.value,
