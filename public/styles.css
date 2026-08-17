@@ -10,6 +10,7 @@
   --radius: 12px;
   --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.06);
   --timecol: 52px;   /* width of the time-label column in the grids */
+  --section-h: 44px; /* height of the sticky section header bar */
 }
 
 * { box-sizing: border-box; }
@@ -41,6 +42,30 @@ h2 { font-size: 1.15rem; margin: 28px 0 12px; }
   padding: 20px;
   margin-bottom: 18px;
 }
+
+/* ---- sticky, color-coded sections ---- */
+.section { overflow: visible; }
+/* the section title locks to the top of the viewport while its section is on
+   screen, so it's always clear which section you're scrolling in */
+.section-head {
+  position: sticky; top: 0; z-index: 5;
+  margin: -20px -20px 12px;              /* span the panel (padding: 20px) */
+  padding: 10px 20px; min-height: var(--section-h);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 1.15rem; font-weight: 700;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* subtle blue wash = "your availability" */
+.section-avail { background: #fcfdff; }
+.section-avail .section-head { background: #eef2ff; color: #26356e; }
+.section-avail .ghead { background: #eef2ff; }
+
+/* subtle green wash = "best times to meet" */
+.section-best { background: #fbfefb; }
+.section-best .section-head { background: #eefcf1; color: #14532d; }
+.section-best .ghead { background: #eefcf1; }
 
 label { display: block; font-weight: 600; font-size: 0.9rem; margin: 14px 0 6px; }
 .hint { font-weight: 400; color: var(--muted); font-size: 0.82rem; }
@@ -106,9 +131,10 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 .ghead {
   display: flex; flex-direction: column; align-items: center; line-height: 1.1;
   padding: 6px 2px; color: var(--ink);
-  /* freeze this group's day/date row while scrolling its times; the next
-     group's header takes over when that group scrolls up */
-  position: sticky; top: 0; z-index: 2;
+  /* freeze this group's day/date row while scrolling its times; sits just
+     below the sticky section bar. The next group's header takes over when
+     that group scrolls up. */
+  position: sticky; top: var(--section-h); z-index: 2;
   background: var(--panel); box-shadow: 0 1px 0 var(--line);
 }
 .ghead .dow { font-weight: 700; font-size: 0.72rem; }
