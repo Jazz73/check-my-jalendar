@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Check My Jalendar</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -302,10 +302,12 @@
         c.dataset.key = key;
         c.addEventListener('pointerdown', (e) => {
           e.preventDefault();
+          // don't let touch capture the pointer to this one cell — we drive
+          // painting from elementFromPoint so a drag can cross many cells.
+          try { c.releasePointerCapture(e.pointerId); } catch {}
           painting = true; paintTo = !mine.has(key);
           applyPaint(key, c);
         });
-        c.addEventListener('pointerenter', () => { if (painting) applyPaint(key, c); });
         return c;
       });
     }
@@ -316,6 +318,19 @@
       scheduleSave();
     }
 
+    // While a drag is in progress, paint whichever editable slot is under the
+    // finger/cursor. Works for touch (where pointerenter on siblings doesn't
+    // fire) by hit-testing with elementFromPoint. Only editable slots have a
+    // data-key, so dragging over blank/out-of-range cells is a no-op.
+    document.addEventListener('pointermove', (e) => {
+      if (!painting) return;
+      e.preventDefault();
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el && el.classList.contains('slot') && el.dataset.key) {
+        applyPaint(el.dataset.key, el);
+      }
+    }, { passive: false });
+
     // re-color my grid without rebuilding (after poll)
     function paintMyGrid() {
       $('myGrid').querySelectorAll('.slot[data-key]').forEach((c) => {
@@ -324,6 +339,7 @@
     }
 
     window.addEventListener('pointerup', () => { painting = false; });
+    window.addEventListener('pointercancel', () => { painting = false; });
 
     function cell(cls, text) {
       const d = document.createElement('div');

@@ -20,6 +20,8 @@ body {
   color: var(--ink);
   background: var(--bg);
   line-height: 1.5;
+  touch-action: manipulation;   /* kill double-tap-to-zoom on taps */
+  -webkit-text-size-adjust: 100%;
 }
 
 a { color: var(--accent); }
@@ -98,8 +100,9 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 .weekblock { margin-bottom: 18px; }
 .weekblock:last-child { margin-bottom: 0; }
 /* fluid: day columns share the row width, so it never scrolls sideways */
-.grid { display: grid; gap: 2px; width: 100%; user-select: none; touch-action: none; }
-.gcell { font-size: 0.75rem; text-align: center; min-width: 0; }
+.grid { display: grid; gap: 2px; width: 100%; user-select: none; }
+/* labels let the page scroll normally when touched */
+.gcell { font-size: 0.75rem; text-align: center; min-width: 0; touch-action: pan-y; }
 .ghead {
   display: flex; flex-direction: column; align-items: center; line-height: 1.1;
   padding: 4px 2px 6px; color: var(--ink);
@@ -115,15 +118,17 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
   width: 100%; min-width: 0; height: 22px; border-radius: 5px;
   border: 1px solid var(--line); background: #fff; cursor: pointer;
   transition: background 0.05s;
+  touch-action: none;   /* editable: capture drag to paint, don't scroll/zoom */
 }
 .slot.mine { background: var(--accent); border-color: var(--accent); }
-.slot.off  { visibility: hidden; }           /* gaps (shouldn't happen within a window) */
+/* blank / out-of-range cells: no border, and let touches scroll the page */
+.slot.off  { visibility: hidden; touch-action: pan-y; }
 .slot.readonly { cursor: default; }
 
-/* heatmap mode: colored by count, not editable */
+/* heatmap mode: colored by count, not editable — touches should scroll */
 .slot.heat {
   cursor: default; display: flex; align-items: center; justify-content: center;
-  font-size: 0.72rem;
+  font-size: 0.72rem; touch-action: pan-y;
 }
 
 @media (max-width: 520px) {
