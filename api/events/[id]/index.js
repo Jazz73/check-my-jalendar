@@ -1,4 +1,4 @@
-import { db, send, readBody, requireAdmin } from '../../../lib/db.js';
+import { db, send, readBody, requireAdmin, withErrors } from '../../../lib/db.js';
 
 const HALF_HOUR = 30;
 const DAY_MIN = 24 * 60;
@@ -9,14 +9,14 @@ function clamp(v, dflt) {
   return Math.max(0, Math.min(DAY_MIN, m));
 }
 
-export default async function handler(req, res) {
+export default withErrors(async function handler(req, res) {
   const id = req.query.id;
   if (!id) return send(res, 400, { error: 'Missing event id.' });
 
   if (req.method === 'GET') return getSnapshot(res, id);
   if (req.method === 'PUT') return editEvent(req, res, id);
   return send(res, 405, { error: 'Method not allowed' });
-}
+});
 
 /** Everything the client needs to render the event in one round-trip. */
 async function getSnapshot(res, id) {

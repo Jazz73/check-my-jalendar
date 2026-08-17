@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>check-my-jalendar</title>
+  <title>Check My Calendar</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -32,7 +32,7 @@
     <div id="app" class="hidden">
       <div class="panel">
         <div class="share">
-          <span class="pill">🔗 Share this link</span>
+          <span class="pill">Share this link</span>
           <input id="shareLink" type="text" readonly />
           <button id="copyBtn">Copy</button>
         </div>
@@ -79,7 +79,7 @@
 
       <!-- admin -->
       <div class="panel hidden" id="adminPanel">
-        <h2 style="margin-top:0">⚙️ Admin controls</h2>
+        <h2 style="margin-top:0">Admin controls</h2>
 
         <label>Event name</label>
         <div class="share">
@@ -117,7 +117,7 @@
       </div>
     </div>
 
-    <footer>check-my-jalendar</footer>
+    <footer>Check My Calendar</footer>
   </div>
 
   <script type="module">
@@ -435,7 +435,7 @@
       const peaks = runs.filter((r) => r.count === maxCount).sort((a, b) => (b.end - b.start) - (a.end - a.start));
 
       if (total && maxCount === total) {
-        el.innerHTML += `<div class="callout">🎉 Everyone (${total}) can make it during the times below.</div>`;
+        el.innerHTML += `<div class="callout">Everyone (${total}) can make it during the times below.</div>`;
       } else {
         el.innerHTML += `<p class="notice">Peak attendance is <strong>${maxCount} of ${total}</strong>. Longest windows at that level:</p>`;
       }

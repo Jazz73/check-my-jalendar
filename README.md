@@ -1,4 +1,4 @@
-# 🗓️ check-my-jalendar
+# Check My Calendar
 
 A dead-simple **"when to meet"** group scheduler (like when2meet). Make an event,
 get a shareable link, everyone marks their free 30-minute slots, and the page shows

@@ -1,5 +1,5 @@
 import { customAlphabet } from 'nanoid';
-import { db, send, readBody, cleanName } from '../../lib/db.js';
+import { db, send, readBody, cleanName, withErrors } from '../../lib/db.js';
 
 // URL-friendly, unambiguous slug (no lookalike chars).
 const makeId = customAlphabet('23456789abcdefghijkmnpqrstuvwxyz', 8);
@@ -16,7 +16,7 @@ function clampWindow(start, end, dStart, dEnd) {
   return [s, e];
 }
 
-export default async function handler(req, res) {
+export default withErrors(async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
 
   const body = await readBody(req);
@@ -51,4 +51,4 @@ export default async function handler(req, res) {
   if (dayErr) return send(res, 500, { error: dayErr.message });
 
   return send(res, 200, { id });
-}
+});

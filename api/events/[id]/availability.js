@@ -1,11 +1,11 @@
-import { db, send, readBody, cleanName } from '../../../lib/db.js';
+import { db, send, readBody, cleanName, withErrors } from '../../../lib/db.js';
 
 const HALF_HOUR = 30;
 const DAY_MIN = 24 * 60;
 
 // Replace a participant's entire selection set. Idempotent: delete then insert.
 // Body: { name, slots: [{ day: 'YYYY-MM-DD', startMin: 1020 }, ...] }
-export default async function handler(req, res) {
+export default withErrors(async function handler(req, res) {
   const id = req.query.id;
   if (!id) return send(res, 400, { error: 'Missing event id.' });
   if (req.method !== 'PUT') return send(res, 405, { error: 'Method not allowed' });
@@ -49,4 +49,4 @@ export default async function handler(req, res) {
   }
 
   return send(res, 200, { ok: true, count: rows.length });
-}
+});

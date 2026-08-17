@@ -1,8 +1,8 @@
-import { db, send, readBody, cleanName } from '../../../lib/db.js';
+import { db, send, readBody, cleanName, withErrors } from '../../../lib/db.js';
 
 // Name-only "login": first use of a name in an event claims it, later uses
 // return the same participant. Case-insensitive match ("keep honest").
-export default async function handler(req, res) {
+export default withErrors(async function handler(req, res) {
   const id = req.query.id;
   if (!id) return send(res, 400, { error: 'Missing event id.' });
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
@@ -52,4 +52,4 @@ export default async function handler(req, res) {
     name.toLowerCase() === cleanName(event.admin_name).toLowerCase();
 
   return send(res, 200, { participant, isAdmin });
-}
+});

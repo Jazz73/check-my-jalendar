@@ -1,7 +1,7 @@
-import { db, send, readBody, requireAdmin } from '../../../lib/db.js';
+import { db, send, readBody, requireAdmin, withErrors } from '../../../lib/db.js';
 
 // Admin-only: add or remove a day from the event.
-export default async function handler(req, res) {
+export default withErrors(async function handler(req, res) {
   const id = req.query.id;
   if (!id) return send(res, 400, { error: 'Missing event id.' });
   if (req.method !== 'POST' && req.method !== 'DELETE') {
@@ -41,4 +41,4 @@ export default async function handler(req, res) {
   }
 
   return send(res, 200, { ok: true });
-}
+});

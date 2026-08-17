@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>check-my-jalendar · plan a meeting</title>
+  <title>Check My Calendar</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="wrap narrow">
-    <h1>🗓️ check-my-jalendar</h1>
+    <h1>Check My Calendar</h1>
     <p class="sub">Make a shareable page, everyone marks when they're free, see the best time to meet.</p>
 
     <div class="panel">
@@ -24,6 +24,17 @@
       <div class="row">
         <div style="flex:2"><input id="dayPick" type="date" /></div>
         <div style="flex:0"><button type="button" id="addDay">Add day</button></div>
+      </div>
+      <div class="row" style="margin-top:8px;align-items:flex-end">
+        <div>
+          <div class="muted-title">From</div>
+          <input id="rangeStart" type="date" />
+        </div>
+        <div>
+          <div class="muted-title">To</div>
+          <input id="rangeEnd" type="date" />
+        </div>
+        <div style="flex:0"><button type="button" id="addRange">Add range</button></div>
       </div>
       <div style="margin-top:8px">
         <button type="button" class="ghost small" id="addWeek">+ Next 7 days</button>
@@ -50,7 +61,7 @@
       </div>
 
       <div style="margin-top:20px">
-        <button class="primary" id="create">Create event →</button>
+        <button class="primary" id="create">Create event</button>
       </div>
       <div class="error" id="err"></div>
     </div>
@@ -107,6 +118,19 @@
       });
     }
     addDay.onclick = () => { if (dayPick.value) { days.add(dayPick.value); renderChips(); } };
+    addRange.onclick = () => {
+      let a = rangeStart.value, b = rangeEnd.value;
+      if (!a && !b) return;
+      if (!a) a = b;           // one end filled -> single day
+      if (!b) b = a;
+      if (a > b) [a, b] = [b, a];
+      const start = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
+      let guard = 0;
+      for (let d = new Date(start); d <= end && guard < 366; d.setDate(d.getDate() + 1), guard++) {
+        days.add(iso(d));
+      }
+      renderChips();
+    };
     addWeek.onclick = () => {
       const t = new Date(); t.setHours(0, 0, 0, 0);
       for (let i = 0; i < 7; i++) { const d = new Date(t); d.setDate(t.getDate() + i); days.add(iso(d)); }
