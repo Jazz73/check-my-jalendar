@@ -123,8 +123,11 @@
   <script type="module">
     import {
       HALF_HOUR, api, fmtTime, fmtRange, fmtDayShort, dayParts, slotsForDay,
-      groupWeeks, rememberName, recallName,
+      groupWeeks, parseDay, rememberName, recallName,
     } from '/app.js';
+
+    // How many days before we stop forcing one row and split into aligned weeks.
+    const SINGLE_ROW_MAX = 8;
 
     // ---- resolve event id from /e/<id> or ?id= ----
     const eventId =
@@ -245,27 +248,47 @@
       return g;
     }
 
-    // Build one grid per week and stack them vertically inside `host`.
+    // Render a single grid block (one row of day-columns) into `host`.
+    // `cols` is an array of day strings OR null (null = blank placeholder column,
+    // used to align weekday positions across stacked weeks).
+    function renderGridBlock(host, cols, cellFor) {
+      const g = newGrid(cols.length);
+      const present = cols.filter(Boolean);
+      const daySets = new Map(present.map((d) => [d, daySlotSet(d)]));
+
+      g.appendChild(cell('gcell ghead', ''));                // corner
+      cols.forEach((day) => g.appendChild(day ? dayHead(day) : cell('gcell ghead', '')));
+
+      for (const m of slotsFor(present)) {
+        g.appendChild(cell('gcell gtime', fmtTime(m)));
+        cols.forEach((day) => {
+          if (!day || !daySets.get(day).has(m)) { g.appendChild(cell('slot off', '')); return; }
+          g.appendChild(cellFor(day, m, `${day}|${m}`));
+        });
+      }
+      const block = document.createElement('div');
+      block.className = 'weekblock';
+      block.appendChild(g);
+      host.appendChild(block);
+    }
+
+    // Build the availability view into `host`.
+    //  - 8 days or fewer  -> a single row with every day.
+    //  - longer spans     -> one grid per calendar week, each a fixed 7 columns
+    //                        aligned to Mon–Sun with blanks, so days line up.
     // cellFor(day, min, key) returns the slot element for a live day/min.
     function buildWeeks(host, cellFor) {
       host.innerHTML = '';
       if (!snap.days.length) { host.innerHTML = '<p class="notice">No days yet.</p>'; return; }
+
+      if (snap.days.length <= SINGLE_ROW_MAX) {
+        renderGridBlock(host, snap.days.slice(), cellFor);
+        return;
+      }
       for (const wk of groupWeeks(snap.days)) {
-        const g = newGrid(wk.days.length);
-        const daySets = wk.days.map(daySlotSet);
-        g.appendChild(cell('gcell ghead', ''));              // corner
-        wk.days.forEach((d) => g.appendChild(dayHead(d)));
-        for (const m of slotsFor(wk.days)) {
-          g.appendChild(cell('gcell gtime', fmtTime(m)));
-          wk.days.forEach((day, i) => {
-            if (!daySets[i].has(m)) { g.appendChild(cell('slot off', '')); return; }
-            g.appendChild(cellFor(day, m, `${day}|${m}`));
-          });
-        }
-        const block = document.createElement('div');
-        block.className = 'weekblock';
-        block.appendChild(g);
-        host.appendChild(block);
+        const cols = new Array(7).fill(null); // Mon..Sun
+        for (const day of wk.days) cols[(parseDay(day).getDay() + 6) % 7] = day;
+        renderGridBlock(host, cols, cellFor);
       }
     }
 
