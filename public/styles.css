@@ -57,15 +57,13 @@ h2 { font-size: 1.15rem; margin: 28px 0 12px; }
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
-/* subtle blue wash = "your availability" */
+/* subtle blue wash = "your availability" (calendar rows stay neutral) */
 .section-avail { background: #fcfdff; }
 .section-avail .section-head { background: #eef2ff; color: #26356e; }
-.section-avail .ghead { background: #eef2ff; }
 
-/* subtle green wash = "best times to meet" */
+/* subtle green wash = "best times to meet" (calendar rows stay neutral) */
 .section-best { background: #fbfefb; }
 .section-best .section-head { background: #eefcf1; color: #14532d; }
-.section-best .ghead { background: #eefcf1; }
 
 label { display: block; font-weight: 600; font-size: 0.9rem; margin: 14px 0 6px; }
 .hint { font-weight: 400; color: var(--muted); font-size: 0.82rem; }
