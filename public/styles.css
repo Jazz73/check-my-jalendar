@@ -9,6 +9,7 @@
   --good: #16a34a;
   --radius: 12px;
   --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.06);
+  --timecol: 52px;   /* width of the time-label column in the grids */
 }
 
 * { box-sizing: border-box; }
@@ -92,14 +93,26 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 .share { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .share input { flex: 1; min-width: 200px; }
 
-/* ---- availability grid ---- */
-.grid-scroll { overflow-x: auto; padding-bottom: 8px; }
-.grid { display: inline-grid; gap: 2px; user-select: none; }
-.gcell { font-size: 0.75rem; text-align: center; }
-.ghead { font-weight: 700; padding: 6px 8px; color: var(--ink); white-space: nowrap; }
-.gtime { color: var(--muted); padding: 0 10px 0 2px; text-align: right; white-space: nowrap; align-self: center; }
+/* ---- availability grid (one grid per week, stacked vertically) ---- */
+.grid-scroll { padding-bottom: 4px; }
+.weekblock { margin-bottom: 18px; }
+.weekblock:last-child { margin-bottom: 0; }
+/* fluid: day columns share the row width, so it never scrolls sideways */
+.grid { display: grid; gap: 2px; width: 100%; user-select: none; touch-action: none; }
+.gcell { font-size: 0.75rem; text-align: center; min-width: 0; }
+.ghead {
+  display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+  padding: 4px 2px 6px; color: var(--ink);
+}
+.ghead .dow { font-weight: 700; font-size: 0.72rem; }
+.ghead .dom { font-weight: 800; font-size: 0.95rem; }
+.ghead .mon { font-weight: 400; font-size: 0.66rem; color: var(--muted); }
+.gtime {
+  color: var(--muted); font-size: 0.68rem; padding: 0 6px 0 0;
+  text-align: right; white-space: nowrap; align-self: center;
+}
 .slot {
-  width: 74px; height: 26px; border-radius: 5px;
+  width: 100%; min-width: 0; height: 28px; border-radius: 5px;
   border: 1px solid var(--line); background: #fff; cursor: pointer;
   transition: background 0.05s;
 }
@@ -108,7 +121,16 @@ button.small { padding: 6px 10px; font-size: 0.85rem; }
 .slot.readonly { cursor: default; }
 
 /* heatmap mode: colored by count, not editable */
-.slot.heat { cursor: default; }
+.slot.heat {
+  cursor: default; display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 520px) {
+  :root { --timecol: 44px; }
+  .slot { height: 30px; }        /* a touch taller for easier tapping */
+  .gtime { font-size: 0.62rem; }
+}
 
 .legend { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); margin: 6px 0 0; }
 .legend .swatch { width: 18px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Check My Calendar</title>
+  <title>Check My Jalendar</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -20,7 +20,7 @@
     <!-- name gate -->
     <div class="panel narrow hidden" id="gate">
       <h2 style="margin-top:0">Enter your name to join</h2>
-      <p class="notice">First time claims the name, next time picks up where you left off. Low security — just to keep honest.</p>
+      <p class="notice">First time claims the name, next time picks up where you left off.</p>
       <div class="share" style="margin-top:12px">
         <input id="nameInput" type="text" placeholder="Your name" />
         <button class="primary" id="joinBtn">Join</button>
@@ -117,13 +117,13 @@
       </div>
     </div>
 
-    <footer>Check My Calendar</footer>
+    <footer>Check My Jalendar</footer>
   </div>
 
   <script type="module">
     import {
-      HALF_HOUR, api, fmtTime, fmtRange, fmtDayShort, slotsForDay, isWeekend,
-      rememberName, recallName,
+      HALF_HOUR, api, fmtTime, fmtRange, fmtDayShort, dayParts, slotsForDay,
+      groupWeeks, rememberName, recallName,
     } from '/app.js';
 
     // ---- resolve event id from /e/<id> or ?id= ----
@@ -221,49 +221,70 @@
       pollTimer = setInterval(() => refresh(false).catch(() => {}), 5000);
     }
 
-    // ---------- grid geometry ----------
-    function allSlots() {
-      const s = new Set();
-      for (const day of snap.days) for (const m of slotsForDay(snap.event, day)) s.add(m);
-      return [...s].sort((a, b) => a - b);
-    }
+    // ---------- grid geometry (split per calendar week, fluid columns) ----------
     function daySlotSet(day) { return new Set(slotsForDay(snap.event, day)); }
 
-    function layoutGrid(el) {
-      el.style.gridTemplateColumns = `auto repeat(${snap.days.length}, 74px)`;
+    function slotsFor(days) {
+      const s = new Set();
+      for (const day of days) for (const m of slotsForDay(snap.event, day)) s.add(m);
+      return [...s].sort((a, b) => a - b);
+    }
+
+    function dayHead(day) {
+      const p = dayParts(day);
+      const h = cell('gcell ghead', '');
+      h.innerHTML = `<span class="dow">${p.dow}</span><span class="dom">${p.dom}</span><span class="mon">${p.mon}</span>`;
+      return h;
+    }
+
+    function newGrid(nDays) {
+      const g = document.createElement('div');
+      g.className = 'grid';
+      // fluid day columns (minmax 0) always shrink to fit -> no horizontal scroll
+      g.style.gridTemplateColumns = `var(--timecol) repeat(${nDays}, minmax(0, 1fr))`;
+      return g;
+    }
+
+    // Build one grid per week and stack them vertically inside `host`.
+    // cellFor(day, min, key) returns the slot element for a live day/min.
+    function buildWeeks(host, cellFor) {
+      host.innerHTML = '';
+      if (!snap.days.length) { host.innerHTML = '<p class="notice">No days yet.</p>'; return; }
+      for (const wk of groupWeeks(snap.days)) {
+        const g = newGrid(wk.days.length);
+        const daySets = wk.days.map(daySlotSet);
+        g.appendChild(cell('gcell ghead', ''));              // corner
+        wk.days.forEach((d) => g.appendChild(dayHead(d)));
+        for (const m of slotsFor(wk.days)) {
+          g.appendChild(cell('gcell gtime', fmtTime(m)));
+          wk.days.forEach((day, i) => {
+            if (!daySets[i].has(m)) { g.appendChild(cell('slot off', '')); return; }
+            g.appendChild(cellFor(day, m, `${day}|${m}`));
+          });
+        }
+        const block = document.createElement('div');
+        block.className = 'weekblock';
+        block.appendChild(g);
+        host.appendChild(block);
+      }
     }
 
     // ---------- my editable grid ----------
     let painting = false, paintTo = false;
 
     function buildMyGrid() {
-      const el = $('myGrid');
-      el.innerHTML = '';
-      if (!snap.days.length) { el.innerHTML = '<p class="notice">No days yet — the admin can add some.</p>'; return; }
-      layoutGrid(el);
-      const slots = allSlots();
-      const daySets = snap.days.map(daySlotSet);
-
-      el.appendChild(cell('gcell ghead', ''));               // corner
-      snap.days.forEach((d) => el.appendChild(cell('gcell ghead', fmtDayShort(d))));
-
-      for (const m of slots) {
-        el.appendChild(cell('gcell gtime', fmtTime(m)));
-        snap.days.forEach((day, i) => {
-          if (!daySets[i].has(m)) { el.appendChild(cell('slot off', '')); return; }
-          const key = `${day}|${m}`;
-          const c = document.createElement('div');
-          c.className = 'slot' + (mine.has(key) ? ' mine' : '');
-          c.dataset.key = key;
-          c.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            painting = true; paintTo = !mine.has(key);
-            applyPaint(key, c);
-          });
-          c.addEventListener('pointerenter', () => { if (painting) applyPaint(key, c); });
-          el.appendChild(c);
+      buildWeeks($('myGrid'), (day, m, key) => {
+        const c = document.createElement('div');
+        c.className = 'slot' + (mine.has(key) ? ' mine' : '');
+        c.dataset.key = key;
+        c.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          painting = true; paintTo = !mine.has(key);
+          applyPaint(key, c);
         });
-      }
+        c.addEventListener('pointerenter', () => { if (painting) applyPaint(key, c); });
+        return c;
+      });
     }
 
     function applyPaint(key, c) {
@@ -359,30 +380,17 @@
     }
 
     function renderHeat(counts, total) {
-      const el = $('heatGrid'); el.innerHTML = '';
-      if (!snap.days.length) { el.innerHTML = '<p class="notice">No days yet.</p>'; return; }
-      layoutGrid(el);
-      const slots = allSlots();
-      const daySets = snap.days.map(daySlotSet);
-      el.appendChild(cell('gcell ghead', ''));
-      snap.days.forEach((d) => el.appendChild(cell('gcell ghead', fmtDayShort(d))));
-      for (const m of slots) {
-        el.appendChild(cell('gcell gtime', fmtTime(m)));
-        snap.days.forEach((day, i) => {
-          if (!daySets[i].has(m)) { el.appendChild(cell('slot off', '')); return; }
-          const rec = counts.get(`${day}|${m}`);
-          const n = rec ? rec.count : 0;
-          const c = document.createElement('div');
-          c.className = 'slot heat';
-          c.style.background = heatColor(n, total);
-          c.style.color = n / (total || 1) >= 0.67 ? '#fff' : '#334';
-          c.style.display = 'flex'; c.style.alignItems = 'center'; c.style.justifyContent = 'center';
-          c.style.fontSize = '0.72rem';
-          c.textContent = n || '';
-          if (rec) c.title = `${fmtDayShort(day)} ${fmtRange(m, m + HALF_HOUR)}\n${rec.names.join(', ')}`;
-          el.appendChild(c);
-        });
-      }
+      buildWeeks($('heatGrid'), (day, m) => {
+        const rec = counts.get(`${day}|${m}`);
+        const n = rec ? rec.count : 0;
+        const c = document.createElement('div');
+        c.className = 'slot heat';
+        c.style.background = heatColor(n, total);
+        c.style.color = n / (total || 1) >= 0.67 ? '#fff' : '#334';
+        c.textContent = n || '';
+        if (rec) c.title = `${fmtDayShort(day)} ${fmtRange(m, m + HALF_HOUR)}\n${rec.names.join(', ')}`;
+        return c;
+      });
     }
 
     // merge consecutive equal-count slots (same day) into ranges

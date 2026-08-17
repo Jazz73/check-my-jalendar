@@ -1,7 +1,7 @@
 import { db, send, readBody, cleanName, withErrors } from '../../../lib/db.js';
 
 // Name-only "login": first use of a name in an event claims it, later uses
-// return the same participant. Case-insensitive match ("keep honest").
+// return the same participant. Case-insensitive match.
 export default withErrors(async function handler(req, res) {
   const id = req.query.id;
   if (!id) return send(res, 400, { error: 'Missing event id.' });

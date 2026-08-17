@@ -58,6 +58,43 @@ export function fmtDayShort(day) {
   return `${DOW[dt.getDay()]} ${MON[dt.getMonth()]} ${dt.getDate()}`;
 }
 
+/** Parts for a compact stacked column header: { dow:'Tue', dom:18, mon:'Aug' }. */
+export function dayParts(day) {
+  const dt = parseDay(day);
+  return { dow: DOW[dt.getDay()], dom: dt.getDate(), mon: MON[dt.getMonth()] };
+}
+
+/** Local YYYY-MM-DD for a Date (no UTC shift). */
+export function isoDate(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Monday-of-week key for a 'YYYY-MM-DD' day, used to group days into weeks. */
+export function weekKey(day) {
+  const d = parseDay(day);
+  const mondayOffset = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+  d.setDate(d.getDate() - mondayOffset);
+  return isoDate(d);
+}
+
+/** Group a sorted day list into consecutive calendar weeks (Mon–Sun). */
+export function groupWeeks(days) {
+  const groups = [];
+  let curKey = null;
+  for (const day of days) {
+    const k = weekKey(day);
+    if (k !== curKey) {
+      groups.push({ key: k, days: [] });
+      curKey = k;
+    }
+    groups[groups.length - 1].days.push(day);
+  }
+  return groups;
+}
+
 /**
  * Given an event config + a day, return the list of 30-min chunk start
  * minutes to show, based on the weekday/weekend core window.

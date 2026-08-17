@@ -5,7 +5,7 @@
 create table if not exists events (
   id                text primary key,               -- short shareable slug
   title             text not null default 'Untitled event',
-  admin_name        text not null,                  -- name that owns admin rights (keep-honest)
+  admin_name        text not null,                  -- name that owns admin rights
   weekday_start_min int  not null default 1020,     -- 17:00
   weekday_end_min   int  not null default 1440,     -- 24:00 (midnight)
   weekend_start_min int  not null default 660,      -- 11:00
@@ -26,7 +26,7 @@ create table if not exists participants (
   created_at timestamptz not null default now()
 );
 
--- one participant per name per event, case-insensitive ("keep honest" login)
+-- one participant per name per event, case-insensitive
 create unique index if not exists participants_event_name_ci
   on participants (event_id, lower(name));
 

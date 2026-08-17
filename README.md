@@ -1,12 +1,11 @@
-# Check My Calendar
+# Check My Jalendar
 
 A dead-simple **"when to meet"** group scheduler (like when2meet). Make an event,
 get a shareable link, everyone marks their free 30-minute slots, and the page shows
 the best times to meet a few different ways.
 
 - **No accounts.** Name-only "login": the first time you type a name in an event it's
-  claimed; next time the same name picks up your selections. Low security — just to
-  keep everyone honest.
+  claimed; next time the same name picks up your selections.
 - **Shareable URL** per event (`/e/<id>`).
 - **Admin** = whoever created the event. Admins can add/remove days and edit the
   **core time windows** shown (e.g. weekdays 5pm–midnight, weekends 11am–midnight).
